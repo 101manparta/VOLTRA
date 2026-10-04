@@ -18,11 +18,14 @@ import { useApp } from '../context/AppContext';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricDisplay } from '../components/ui/MetricDisplay';
 import { TactileButton } from '../components/ui/TactileButton';
+import { providerRegistry } from '../services/providers/providerRegistry';
 
 export const AdminPage: React.FC = () => {
   const { currentUser, isSupabaseLive, stations, alerts } = useApp();
 
   const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
+
+  const registeredProviders = providerRegistry.getAllProviders();
 
   const mockAuditLogs = [
     {
@@ -174,23 +177,43 @@ export const AdminPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {mockDataSources.map((ds) => (
-            <GlassCard key={ds.code} variant="base" className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                  {ds.status}
-                </span>
-                <span className="text-[11px] font-mono text-slate-400">{ds.latency}</span>
-              </div>
-              <h4 className="text-base font-bold text-white mb-1">{ds.name}</h4>
-              <p className="text-xs font-mono text-slate-400 mb-4">{ds.protocol}</p>
-              <div className="pt-3 border-t border-white/10 flex justify-between text-xs font-mono text-slate-400">
-                <span>Ping Terakhir:</span>
-                <span className="text-slate-200">{ds.lastPing}</span>
-              </div>
-            </GlassCard>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {registeredProviders.map((provider) => {
+            const isDev = provider.protocol === 'INTERNAL_DEVELOPMENT';
+            const isLive = provider.isLiveOperational;
+
+            return (
+              <GlassCard key={provider.id} variant="base" className="p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span
+                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                        isLive
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : isDev
+                          ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
+                          : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                      }`}
+                    >
+                      {isLive ? 'LIVE' : isDev ? 'SANDBOX' : 'STANDBY'}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">{provider.protocol}</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-1 line-clamp-1">{provider.name}</h4>
+                  <p className="text-xs font-mono text-slate-400 mb-3">{provider.providerCode}</p>
+                </div>
+
+                <div className="pt-3 border-t border-white/10 text-[11px] font-mono text-slate-400 flex flex-col gap-1">
+                  <div className="flex justify-between">
+                    <span>Status:</span>
+                    <span className={isLive ? 'text-emerald-400' : isDev ? 'text-teal-300' : 'text-amber-400'}>
+                      {isLive ? 'Operasional' : isDev ? 'Development Seed' : 'Menunggu Kredensial'}
+                    </span>
+                  </div>
+                </div>
+              </GlassCard>
+            );
+          })}
         </div>
       </div>
 

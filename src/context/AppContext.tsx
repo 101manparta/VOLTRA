@@ -3,11 +3,13 @@ import { ActionableAlert } from '../types/alert';
 import { LiveChargingSession } from '../types/session';
 import { ChargingStation, StationRecommendation } from '../types/station';
 import { alertService } from '../services/alertService';
+import { authService, UserProfile, UserRole } from '../services/authService';
 import { INITIAL_LIVE_SESSION } from '../services/mock/sessionData';
 import { sessionService } from '../services/sessionService';
 import { stationService } from '../services/stationService';
+import { realtimeManager } from '../lib/supabase/realtime';
 
-export type AppRoute = 'landing' | 'explore' | 'session' | 'history' | 'fleet' | 'alerts';
+export type AppRoute = 'landing' | 'explore' | 'session' | 'history' | 'fleet' | 'alerts' | 'operator' | 'admin';
 
 interface AppContextType {
   currentRoute: AppRoute;
@@ -29,6 +31,17 @@ interface AppContextType {
   toggleSimulateDerate: () => void;
   startChargingAtStation: (station: ChargingStation) => void;
   stopActiveSession: () => void;
+  // Auth & Roles
+  currentUser: UserProfile;
+  switchRole: (role: UserRole) => Promise<void>;
+  signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, pass: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<void>;
+  isSupabaseLive: boolean;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  isLoadingStations: boolean;
+  refreshStations: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -44,25 +57,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [filterMinPower, setFilterMinPower] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSimulatingDerate, setIsSimulatingDerate] = useState<boolean>(false);
+  const [isLoadingStations, setIsLoadingStations] = useState<boolean>(true);
 
-  // Load initial data
-  useEffect(() => {
-    stationService.getStations().then((data) => {
+  // Auth & Multi-tenant State
+  const [currentUser, setCurrentUser] = useState<UserProfile>({
+    id: 'usr-001',
+    email: 'driver.bali@voltara.io',
+    fullName: 'I Wayan Arya (EV Driver)',
+    role: 'USER',
+  });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const isSupabaseLive = authService.isConfigured();
+
+  // Load initial profile & data
+  const refreshStations = async () => {
+    setIsLoadingStations(true);
+    try {
+      const data = await stationService.getStations({
+        searchQuery,
+        connectorType: filterConnector,
+        minPowerKw: filterMinPower,
+      });
       setStations(data);
-    });
-    stationService.getActiveRecommendation().then((rec) => {
+      const rec = await stationService.getActiveRecommendation();
       setRecommendation(rec);
+    } catch (err) {
+      console.warn('Error fetching stations:', err);
+    } finally {
+      setIsLoadingStations(false);
+    }
+  };
+
+  useEffect(() => {
+    authService.getCurrentProfile().then((p) => setCurrentUser(p));
+    refreshStations();
+    alertService.getAlerts().then((items) => setAlerts(items));
+    sessionService.getActiveSession().then((s) => setActiveSession(s));
+  }, []);
+
+  // Set up Supabase Realtime subscriptions
+  useEffect(() => {
+    const channel = realtimeManager.subscribeToChargers((payload) => {
+      if (payload.eventType === 'UPDATE' && payload.newRecord) {
+        setStations((prev) =>
+          prev.map((s) =>
+            s.id === payload.newRecord.id
+              ? {
+                  ...s,
+                  status: payload.newRecord.status,
+                  queueLength: payload.newRecord.queue_length ?? s.queueLength,
+                  confidence: {
+                    ...s.confidence,
+                    overallScore: payload.newRecord.confidence_score ?? s.confidence.overallScore,
+                  },
+                  lastReportedAt: payload.newRecord.last_reported_at || new Date().toISOString(),
+                }
+              : s
+          )
+        );
+      }
     });
-    alertService.getAlerts().then((items) => {
-      setAlerts(items);
-    });
+
+    return () => {
+      realtimeManager.unsubscribe(channel);
+    };
   }, []);
 
   // Sync hash routing
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '') as AppRoute;
-      if (['landing', 'explore', 'session', 'history', 'fleet', 'alerts'].includes(hash)) {
+      if (['landing', 'explore', 'session', 'history', 'fleet', 'alerts', 'operator', 'admin'].includes(hash)) {
         setCurrentRoute(hash);
       }
     };
@@ -77,23 +142,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Switch Role
+  const switchRole = async (role: UserRole) => {
+    const profile = await authService.switchDemoPersona(role);
+    setCurrentUser(profile);
+    if (role === 'OPERATOR') {
+      setRoute('operator');
+    } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+      setRoute('admin');
+    } else if (role === 'FLEET_MANAGER') {
+      setRoute('fleet');
+    }
+  };
+
+  const signIn = async (email: string, pass: string) => {
+    const res = await authService.signIn(email, pass);
+    if (res.success && res.profile) {
+      setCurrentUser(res.profile);
+    }
+    return res;
+  };
+
+  const signUp = async (email: string, pass: string, name: string) => {
+    return await authService.signUp(email, pass, name, currentUser.role);
+  };
+
+  const signOut = async () => {
+    await authService.signOut();
+    setCurrentUser({
+      id: 'usr-guest',
+      email: 'guest@voltara.io',
+      fullName: 'Tamu (Guest)',
+      role: 'USER',
+    });
+    setRoute('landing');
+  };
+
   // Real-time ticking simulation for live charging session
   useEffect(() => {
     if (activeSession.state !== 'CHARGING') return;
 
     const timer = setInterval(() => {
       setActiveSession((prev) => {
-        // Slightly fluctuate power between 47.8 and 48.6 kW unless derated
         const basePower = isSimulatingDerate ? 31.2 : 48.2;
         const jitter = (Math.random() - 0.5) * 0.4;
         const currentPower = Math.max(10, Number((basePower + jitter).toFixed(1)));
 
-        // Increment delivered energy
-        const energyIncrement = (currentPower / 3600) * 2; // 2 seconds tick
+        const energyIncrement = (currentPower / 3600) * 2;
         const newEnergy = Number((prev.energyDeliveredKwh + energyIncrement).toFixed(2));
         const newCost = Math.round(newEnergy * prev.tariffPerKwh);
 
-        // SoC progression
         let newSoc = prev.currentSocPercent;
         if (Math.random() > 0.85 && newSoc < prev.targetSocPercent) {
           newSoc = prev.currentSocPercent + 1;
@@ -109,7 +207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           hasDeratingAnomaly: isSimulatingDerate,
           anomalyMessage: isSimulatingDerate
             ? 'Charging speed throttled from 52.4 kW to 31.2 kW due to regional transformer load management.'
-            : undefined
+            : undefined,
         };
       });
     }, 2000);
@@ -121,10 +219,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsSimulatingDerate((prev) => {
       const next = !prev;
       if (next) {
-        // Push an actionable alert
         const newAlert: ActionableAlert = {
           id: `alt-${Date.now()}`,
-          timestamp: 'Just now',
+          timestamp: 'Baru saja',
           severity: 'WARNING',
           title: 'Live Charging Power Derated',
           description: 'Station output dropped from 48.2 kW to 31.2 kW. Sanur Hub Bay 02 is open 4.2 km away.',
@@ -132,7 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           actionLabel: 'View Alternative',
           actionType: 'NAVIGATE',
           targetId: 'spklu-sanur-hub',
-          isRead: false
+          isRead: false,
         };
         setAlerts((curr) => [newAlert, ...curr]);
       }
@@ -140,41 +237,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const startChargingAtStation = (station: ChargingStation) => {
-    const ccsBay = station.connectors.find(c => c.status === 'AVAILABLE') || station.connectors[0];
-    setActiveSession({
-      sessionId: `volt-sess-${Math.floor(Math.random() * 90000 + 10000)}`,
-      stationId: station.id,
-      stationName: station.name,
-      connectorId: ccsBay.id,
-      connectorType: ccsBay.type,
-      startedAt: new Date().toISOString(),
-      elapsedSeconds: 0,
-      state: 'CHARGING',
-      currentSocPercent: 42,
-      targetSocPercent: 80,
-      instantaneousPowerKw: ccsBay.maxPowerKw > 60 ? 52.4 : 22.0,
-      energyDeliveredKwh: 0.1,
-      estimatedMinutesToTarget: 24,
-      estimatedCostTotal: 0,
-      currency: station.currency,
-      tariffPerKwh: station.pricingPerKwh,
-      powerHistory: [
-        { timestamp: 'Just now', powerKw: ccsBay.maxPowerKw > 60 ? 52.4 : 22.0, socPercent: 42, voltageV: 415, currentA: 126 }
-      ],
-      hasDeratingAnomaly: false
-    });
+  const startChargingAtStation = async (station: ChargingStation) => {
+    const ccsBay = station.connectors.find((c) => c.status === 'AVAILABLE') || station.connectors[0];
+    const newSession = await sessionService.startSession(
+      station.id,
+      station.name,
+      ccsBay.id,
+      ccsBay.type
+    );
+    setActiveSession(newSession);
     setRoute('session');
   };
 
-  const stopActiveSession = () => {
-    setActiveSession(prev => ({
+  const stopActiveSession = async () => {
+    await sessionService.stopSession(activeSession);
+    setActiveSession((prev) => ({
       ...prev,
-      state: 'COMPLETED'
+      state: 'COMPLETED',
     }));
   };
 
-  const unreadAlertsCount = alerts.filter(a => !a.isRead).length;
+  const unreadAlertsCount = alerts.filter((a) => !a.isRead).length;
 
   return (
     <AppContext.Provider
@@ -197,7 +280,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSimulatingDerate,
         toggleSimulateDerate,
         startChargingAtStation,
-        stopActiveSession
+        stopActiveSession,
+        currentUser,
+        switchRole,
+        signIn,
+        signUp,
+        signOut,
+        isSupabaseLive,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        isLoadingStations,
+        refreshStations,
       }}
     >
       {children}

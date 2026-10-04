@@ -29,6 +29,7 @@ export interface ChargingStation {
   name: string;
   operator: string;
   address: string;
+  status: 'AVAILABLE' | 'OCCUPIED' | 'OFFLINE' | 'FAULT' | 'UNKNOWN';
   coordinates: {
     lat: number;
     lng: number;

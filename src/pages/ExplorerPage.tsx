@@ -22,7 +22,8 @@ export const ExplorerPage: React.FC = () => {
     setFilterMinPower,
     searchQuery,
     setSearchQuery,
-    startChargingAtStation
+    startChargingAtStation,
+    isLoadingStations
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'all' | 'high_confidence'>('all');
@@ -117,8 +118,11 @@ export const ExplorerPage: React.FC = () => {
         {/* Left Column: Station Feed (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-4">
           <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-            <span>
+            <span className="flex items-center gap-2">
               VERIFIED STATIONS ({filteredStations.length})
+              {isLoadingStations && (
+                <span className="inline-block w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              )}
             </span>
             <div className="flex items-center gap-2">
               <button

@@ -1,23 +1,36 @@
 import React from 'react';
-import { Activity, Bell, Compass, History, LayoutDashboard, Zap } from 'lucide-react';
+import { Activity, Bell, Compass, History, LayoutDashboard, Server, Shield, User, Zap } from 'lucide-react';
 import { AppRoute, useApp } from '../../context/AppContext';
 import { TactileButton } from '../ui/TactileButton';
 
 export const NavigationBar: React.FC = () => {
-  const { currentRoute, setRoute, unreadAlertsCount, activeSession } = useApp();
+  const {
+    currentRoute,
+    setRoute,
+    unreadAlertsCount,
+    activeSession,
+    currentUser,
+    setIsAuthModalOpen,
+    isSupabaseLive
+  } = useApp();
 
-  const navLinks: { id: AppRoute; label: string; icon: React.ReactNode }[] = [
+  const isOperator = currentUser.role === 'OPERATOR' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
+  const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
+
+  const navLinks: { id: AppRoute; label: string; icon: React.ReactNode; show?: boolean }[] = [
     { id: 'explore', label: 'Explorer', icon: <Compass className="w-4 h-4" /> },
     { id: 'session', label: 'Live Cockpit', icon: <Zap className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
     { id: 'fleet', label: 'Fleet SaaS', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'operator', label: 'Operator', icon: <Server className="w-4 h-4 text-emerald-400" />, show: isOperator },
+    { id: 'admin', label: 'Admin', icon: <Shield className="w-4 h-4 text-cyan-400" />, show: isAdmin },
     { id: 'alerts', label: 'Alerts', icon: <Bell className="w-4 h-4" /> },
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full px-4 lg:px-8 py-3.5 bg-[#07090E]/80 backdrop-blur-2xl border-b border-white/[0.08]">
+    <header className="sticky top-0 z-50 w-full px-4 lg:px-8 py-3 bg-[#07090E]/80 backdrop-blur-2xl border-b border-white/[0.08]">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Zone 1: Single text element wordmark */}
+        {/* Zone 1: Wordmark */}
         <button
           onClick={() => setRoute('landing')}
           className="flex items-center gap-2.5 text-left group focus-visible:outline-none"
@@ -35,31 +48,33 @@ export const NavigationBar: React.FC = () => {
           </div>
         </button>
 
-        {/* Zone 2: 4-6 clean text navigation links */}
-        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
-          {navLinks.map((link) => {
-            const isActive = currentRoute === link.id;
-            return (
-              <button
-                key={link.id}
-                onClick={() => setRoute(link.id)}
-                className={`relative px-3.5 py-2 text-sm font-medium rounded-xl transition-all duration-150 flex items-center gap-1.5 select-none ${
-                  isActive
-                    ? 'text-white bg-white/[0.08] font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
-                }`}
-              >
-                {link.icon}
-                <span>{link.label}</span>
-                {link.id === 'alerts' && unreadAlertsCount > 0 && (
-                  <span className="ml-1 w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
-                )}
-              </button>
-            );
-          })}
+        {/* Zone 2: Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1">
+          {navLinks
+            .filter((link) => link.show !== false)
+            .map((link) => {
+              const isActive = currentRoute === link.id;
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => setRoute(link.id)}
+                  className={`relative px-3 py-1.5 text-xs font-medium rounded-xl transition-all duration-150 flex items-center gap-1.5 select-none ${
+                    isActive
+                      ? 'text-white bg-white/[0.08] font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {link.icon}
+                  <span>{link.label}</span>
+                  {link.id === 'alerts' && unreadAlertsCount > 0 && (
+                    <span className="ml-1 w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
+                  )}
+                </button>
+              );
+            })}
         </nav>
 
-        {/* Zone 3: Live session quick glance / CTA */}
+        {/* Zone 3: Live session / Identity chip */}
         <div className="flex items-center gap-2.5">
           {activeSession.state === 'CHARGING' && (
             <button
@@ -72,6 +87,26 @@ export const NavigationBar: React.FC = () => {
               </span>
             </button>
           )}
+
+          {/* User Role & Supabase Auth Trigger */}
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors"
+            title="Kelola Identitas & Hak Akses RLS"
+          >
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold">
+              {currentUser.fullName.charAt(0)}
+            </div>
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-xs font-semibold text-white leading-tight">
+                {currentUser.fullName.split(' ')[0]}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 leading-tight flex items-center gap-1">
+                {currentUser.role}
+                <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseLive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              </span>
+            </div>
+          </button>
 
           <TactileButton
             variant="glass"

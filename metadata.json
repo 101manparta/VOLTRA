@@ -1,0 +1,6 @@
+{
+  "name": "VOLTARA - EV Mobility Intelligence",
+  "description": "Real-time EV charging intelligence platform reducing uncertainty, queues, and charging failures.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

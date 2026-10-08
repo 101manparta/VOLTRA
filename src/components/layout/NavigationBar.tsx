@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Bell, Compass, History, LayoutDashboard, Server, Shield, User, Zap } from 'lucide-react';
+import { Activity, Bell, Bot, Compass, History, LayoutDashboard, Server, Shield, User, Zap } from 'lucide-react';
 import { AppRoute, useApp } from '../../context/AppContext';
 import { TactileButton } from '../ui/TactileButton';
 
@@ -19,6 +19,7 @@ export const NavigationBar: React.FC = () => {
 
   const navLinks: { id: AppRoute; label: string; icon: React.ReactNode; show?: boolean }[] = [
     { id: 'explore', label: 'Explorer', icon: <Compass className="w-4 h-4" /> },
+    { id: 'office', label: 'AI Office', icon: <Bot className="w-4 h-4 text-emerald-400" /> },
     { id: 'session', label: 'Live Cockpit', icon: <Zap className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
     { id: 'fleet', label: 'Fleet SaaS', icon: <LayoutDashboard className="w-4 h-4" /> },

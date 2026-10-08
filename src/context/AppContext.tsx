@@ -9,7 +9,7 @@ import { sessionService } from '../services/sessionService';
 import { stationService } from '../services/stationService';
 import { realtimeManager } from '../lib/supabase/realtime';
 
-export type AppRoute = 'landing' | 'explore' | 'session' | 'history' | 'fleet' | 'alerts' | 'operator' | 'admin';
+export type AppRoute = 'landing' | 'explore' | 'session' | 'history' | 'fleet' | 'alerts' | 'operator' | 'admin' | 'office';
 
 interface AppContextType {
   currentRoute: AppRoute;

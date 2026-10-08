@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Compass, History, LayoutDashboard, Server, Shield, User, Zap } from 'lucide-react';
+import { Bell, Bot, Compass, History, LayoutDashboard, Server, Shield, User, Zap } from 'lucide-react';
 import { AppRoute, useApp } from '../../context/AppContext';
 
 export const MobileTabBar: React.FC = () => {
@@ -13,7 +13,7 @@ export const MobileTabBar: React.FC = () => {
       <div className="flex items-center justify-around max-w-md mx-auto">
         <button
           onClick={() => setRoute('explore')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all ${
             currentRoute === 'explore' ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -22,13 +22,23 @@ export const MobileTabBar: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setRoute('office')}
+          className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all ${
+            currentRoute === 'office' ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Bot className="w-5 h-5" />
+          <span className="text-[10px] mt-1 font-medium">AI Office</span>
+        </button>
+
+        <button
           onClick={() => setRoute('session')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all ${
             currentRoute === 'session' ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Zap className="w-5 h-5" />
-          <span className="text-[10px] mt-1 font-medium">Charging</span>
+          <span className="text-[10px] mt-1 font-medium">Cockpit</span>
         </button>
 
         {isOperator ? (

@@ -16,6 +16,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { LandingPage } from './pages/LandingPage';
 import { LiveSessionPage } from './pages/LiveSessionPage';
 import { OperatorPage } from './pages/OperatorPage';
+import { AiOfficePage } from './pages/AiOfficePage';
 
 const AppContent: React.FC = () => {
   const { currentRoute, isAuthModalOpen, setIsAuthModalOpen } = useApp();
@@ -32,6 +33,7 @@ const AppContent: React.FC = () => {
       <main className="flex-1">
         {currentRoute === 'landing' && <LandingPage />}
         {currentRoute === 'explore' && <ExplorerPage />}
+        {currentRoute === 'office' && <AiOfficePage />}
         {currentRoute === 'session' && <LiveSessionPage />}
         {currentRoute === 'history' && <HistoryPage />}
         {currentRoute === 'fleet' && <FleetPage />}

@@ -1,0 +1,63 @@
+# ============================================================================
+# VOLTARA - Menjaga project Supabase gratis tetap aktif
+# ============================================================================
+# Supabase menjeda project Free Plan yang aktivitasnya rendah selama 7 hari.
+# Menurut dokumentasi resmi, "beberapa request pengguna ke database setiap hari"
+# sudah cukup untuk mencegahnya:
+#   https://supabase.com/docs/guides/platform/free-project-pausing
+#
+# Workflow ini mengirim satu request REST ringan dua kali sehari sehingga
+# situs VOLTARA tetap hidup walau tidak ada pengunjung dan laptop pemilik mati.
+#
+# Membaca Repository Variables yang sama dengan workflow deploy:
+#   Settings -> Secrets and variables -> Actions -> Variables
+#       VITE_SUPABASE_URL
+#       VITE_SUPABASE_ANON_KEY
+# Selama variabel itu belum diisi, workflow ini hanya mencetak pesan lalu keluar
+# dengan sukses (tidak pernah gagal).
+# ============================================================================
+
+name: Jaga Supabase tetap aktif
+
+on:
+  schedule:
+    # 01:17 dan 13:17 UTC (jam ganjil menghindari antrean puncak GitHub)
+    - cron: '17 1,13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping REST API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kirim request ringan ke Supabase
+        env:
+          SUPA_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPA_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPA_URL}" ] || [ -z "${SUPA_KEY}" ]; then
+            echo "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum diisi."
+            echo "Lewati ping - situs masih berjalan dalam mode demo."
+            exit 0
+          fi
+
+          echo "Menghubungi ${SUPA_URL} ..."
+          code=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            -H "apikey: ${SUPA_KEY}" \
+            -H "Authorization: Bearer ${SUPA_KEY}" \
+            "${SUPA_URL}/rest/v1/chargers?select=id&limit=1")
+
+          echo "HTTP ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "Respons tidak terduga:"
+            cat /tmp/resp.json
+            exit 1
+          fi
+
+          echo "Project aktif. Jumlah charger pada respons:"
+          cat /tmp/resp.json

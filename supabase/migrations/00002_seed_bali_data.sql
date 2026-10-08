@@ -52,7 +52,7 @@ INSERT INTO public.chargers (
     'OCCUPIED', 'NOMINAL', 2466.00, 'IDR', 3, 38, 74, now() - INTERVAL '8 minutes', true
 ),
 (
-    'c0000000-0000-0000-0000-000000000001',
+    'c0000000-0000-0000-0000-000000000004',
     'a0000000-0000-0000-0000-000000000001',
     'PLN Rayon Denpasar Kota',
     'PLN UID Bali',
@@ -62,7 +62,7 @@ INSERT INTO public.chargers (
     'AVAILABLE', 'NOMINAL', 2466.00, 'IDR', 0, 0, 94, now() - INTERVAL '1 minute', true
 ),
 (
-    'c0000000-0000-0000-0000-000000000002',
+    'c0000000-0000-0000-0000-000000000005',
     'a0000000-0000-0000-0000-000000000002',
     'Voltron ITDC Nusa Dua Convention Hub',
     'Voltron Indonesia',
@@ -72,7 +72,7 @@ INSERT INTO public.chargers (
     'AVAILABLE', 'NOMINAL', 2466.00, 'IDR', 0, 0, 98, now() - INTERVAL '20 seconds', true
 ),
 (
-    'c0000000-0000-0000-0000-000000000003',
+    'c0000000-0000-0000-0000-000000000006',
     'a0000000-0000-0000-0000-000000000003',
     'Starvo Samasta Lifestyle Village Jimbaran',
     'Starvo Network',
@@ -82,7 +82,7 @@ INSERT INTO public.chargers (
     'FAULT', 'THERMAL_DERATE', 2466.00, 'IDR', 2, 25, 48, now() - INTERVAL '24 minutes', true
 ),
 (
-    'c0000000-0000-0000-0000-000000000001',
+    'c0000000-0000-0000-0000-000000000007',
     'a0000000-0000-0000-0000-000000000001',
     'SPKLU PLN Ubud Monkey Forest',
     'PLN UID Bali',
@@ -92,7 +92,7 @@ INSERT INTO public.chargers (
     'AVAILABLE', 'NOMINAL', 2466.00, 'IDR', 1, 10, 88, now() - INTERVAL '3 minutes', true
 ),
 (
-    'c0000000-0000-0000-0000-000000000002',
+    'c0000000-0000-0000-0000-000000000008',
     'a0000000-0000-0000-0000-000000000002',
     'Voltron Batu Bolong Canggu Eco Hub',
     'Voltron Indonesia',

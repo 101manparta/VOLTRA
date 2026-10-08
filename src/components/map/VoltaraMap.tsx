@@ -6,7 +6,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // Configure same-origin static worker URL to avoid Vite dynamic worker resolution error
 if (typeof window !== 'undefined') {
   try {
-    const config = (maplibregl as any).config || (maplibregl as any).default?.config;
+    // maplibre-gl tidak punya default export, jadi cukup nama `config`.
+    const config = (maplibregl as any).config;
     if (config) {
       config.WORKER_URL = '/maplibre-gl-worker.mjs';
     }

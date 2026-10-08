@@ -3,10 +3,16 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+// Supabase lokal (hasil `supabase start`) melayani API lewat http://127.0.0.1:54321,
+// sehingga host lokal harus diizinkan di samping https untuk deployment.
+const isLocalSupabaseHost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(
+  supabaseUrl.trim().replace(/\/+$/, '')
+);
+
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
-  supabaseUrl.startsWith('https://') &&
+  (supabaseUrl.startsWith('https://') || isLocalSupabaseHost) &&
   !supabaseUrl.includes('your-project-id')
 );
 

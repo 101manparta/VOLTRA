@@ -9,7 +9,9 @@ if (typeof window !== 'undefined') {
     // maplibre-gl tidak punya default export, jadi cukup nama `config`.
     const config = (maplibregl as any).config;
     if (config) {
-      config.WORKER_URL = '/maplibre-gl-worker.mjs';
+      // BASE_URL mengikuti `base` Vite, jadi worker tetap ketemu baik di root
+      // maupun saat di-host di subfolder (mis. GitHub Pages /VOLTRA/).
+      config.WORKER_URL = `${import.meta.env.BASE_URL}maplibre-gl-worker.mjs`;
     }
   } catch (err) {
     console.warn('MapLibre worker config initialization note:', err);

@@ -9,11 +9,28 @@
     - Auth (GoTrue) sehat, Realtime hidup
     - anon key ditolak saat menulis
 
-  Pemakaian:  powershell -ExecutionPolicy Bypass -File scripts/verify-backend.ps1
+  Pemakaian:
+    # backend lokal (membaca .env)
+    powershell -ExecutionPolicy Bypass -File scripts/verify-backend.ps1
+
+    # backend cloud, tanpa menyentuh .env
+    ... -ApiUrl "https://xxxx.supabase.co" -AnonKey "eyJ..."
+
+    # menunjuk file env lain
+    ... -EnvFile "C:\path\ke\.env.production"
+
+  Catatan: bila kunci service_role tidak tersedia, pemeriksaan sisi service
+  dilewati dan skrip tetap memverifikasi semua yang bisa diuji dengan anon key.
+
   Kompatibel Windows PowerShell 5.1.
 #>
 [CmdletBinding()]
-param()
+param(
+    [string]$EnvFile,
+    [string]$ApiUrl,
+    [string]$AnonKey,
+    [string]$ServiceKey
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -41,23 +58,37 @@ function Peek($v) { if ($v -and $v.Length -gt 20) { $v.Substring(0, 20) + '...' 
 Write-Host 'VOLTARA backend verification' -ForegroundColor White
 Write-Host "waktu: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-if (-not (Test-Path $envPath)) {
-    Write-Host "`n[FATAL] .env tidak ditemukan. Jalankan scripts/backend-up.ps1 dulu." -ForegroundColor Red
+# ------------------------------------------------- sumber konfigurasi ----
+# Prioritas: parameter eksplisit > file .env (atau -EnvFile).
+if ($EnvFile) { $envPath = $EnvFile }
+
+$cfg = @{}
+if (Test-Path $envPath) {
+    foreach ($line in (Get-Content $envPath)) {
+        $m = [regex]::Match($line.Trim(), '^([A-Z0-9_]+)="?(.*?)"?$')
+        if ($m.Success) { $cfg[$m.Groups[1].Value] = $m.Groups[2].Value }
+    }
+} elseif (-not $ApiUrl) {
+    Write-Host "`n[FATAL] .env tidak ditemukan di $envPath." -ForegroundColor Red
+    Write-Host '        Jalankan scripts/backend-up.ps1, atau pakai -ApiUrl/-AnonKey.' -ForegroundColor Red
     exit 1
 }
 
-# ------------------------------------------------------------- baca .env ----
-$cfg = @{}
-foreach ($line in (Get-Content $envPath)) {
-    $m = [regex]::Match($line.Trim(), '^([A-Z0-9_]+)="?(.*?)"?$')
-    if ($m.Success) { $cfg[$m.Groups[1].Value] = $m.Groups[2].Value }
+if ($ApiUrl -or $AnonKey -or $ServiceKey) {
+    # Mode eksplisit: parameter adalah SATU-SATUNYA sumber konfigurasi.
+    # .env sengaja tidak dibaca supaya kunci backend lokal tidak pernah
+    # tercampur dengan kunci backend cloud.
+    $api  = if ($ApiUrl)  { $ApiUrl.TrimEnd('/') } else { '' }
+    $anon = if ($AnonKey) { $AnonKey }             else { '' }
+    $svc  = $ServiceKey
+} else {
+    $api  = $cfg['VITE_SUPABASE_URL']
+    $anon = $cfg['VITE_SUPABASE_ANON_KEY']
+    $svc  = $cfg['SUPABASE_SERVICE_ROLE_KEY']
 }
-$api  = $cfg['VITE_SUPABASE_URL']
-$anon = $cfg['VITE_SUPABASE_ANON_KEY']
-$svc  = $cfg['SUPABASE_SERVICE_ROLE_KEY']
 
 if (-not $api -or -not $anon) {
-    Write-Host '[FATAL] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY kosong di .env' -ForegroundColor Red
+    Write-Host '[FATAL] URL Supabase / anon key tidak ditemukan pada sumber konfigurasi.' -ForegroundColor Red
     exit 1
 }
 
@@ -65,7 +96,7 @@ Section 'Konfigurasi'
 Note 'API URL'    $api
 Note 'anon key'   "$(Peek $anon) (len $($anon.Length))"
 if ($svc) { Note 'service key' "$(Peek $svc) (len $($svc.Length))" }
-else      { Note 'service key' 'TIDAK ADA di .env' }
+else      { Note 'service key' 'tidak tersedia - pemeriksaan sisi service dilewati' }
 
 $hA = @{ apikey = $anon; Authorization = "Bearer $anon" }
 $hS = @{ apikey = $svc;  Authorization = "Bearer $svc" }
@@ -92,7 +123,11 @@ try {
 }
 
 # ------------------------------------------- isi tabel + kebijakan RLS -----
-Section 'Isi tabel dan kebijakan RLS (anon vs service_role)'
+if ($svc) {
+    Section 'Isi tabel dan kebijakan RLS (anon vs service_role)'
+} else {
+    Section 'Isi tabel dan kebijakan RLS (hanya anon - tanpa service_role)'
+}
 # nama = @(harapan anon, harapan service_role)
 $tables = [ordered]@{
     'organizations'      = @(4, 4)   # publik
@@ -106,11 +141,24 @@ $tables = [ordered]@{
 foreach ($t in $tables.Keys) {
     $wantAnon = $tables[$t][0]
     $wantSvc  = $tables[$t][1]
-    $anonCount = -1; $svcCount = -1
-    try { $anonCount = @(Get-Json "$api/rest/v1/$t`?select=id" $hA).Count } catch { $anonCount = "err$(Get-ErrCode $_)" }
-    try { $svcCount  = @(Get-Json "$api/rest/v1/$t`?select=id" $hS).Count } catch { $svcCount  = "err$(Get-ErrCode $_)" }
-    $ok = ($anonCount -eq $wantAnon) -and ($svcCount -eq $wantSvc)
-    Check "tabel $t" $ok "anon=$anonCount (harap $wantAnon) | service=$svcCount (harap $wantSvc)"
+
+    $anonCount = -1
+    try { $anonCount = @(Get-Json "$api/rest/v1/$t`?select=id" $hA).Count }
+    catch { $anonCount = "err$(Get-ErrCode $_)" }
+
+    if ($svc) {
+        $svcCount = -1
+        try { $svcCount = @(Get-Json "$api/rest/v1/$t`?select=id" $hS).Count }
+        catch { $svcCount = "err$(Get-ErrCode $_)" }
+        $ok = ($anonCount -eq $wantAnon) -and ($svcCount -eq $wantSvc)
+        Check "tabel $t" $ok "anon=$anonCount (harap $wantAnon) | service=$svcCount (harap $wantSvc)"
+    } else {
+        # Tanpa service_role kita hanya bisa memastikan sisi anon benar.
+        # Untuk tabel privat, anon=0 justru bukti RLS bekerja.
+        $ok = ($anonCount -eq $wantAnon)
+        $ket = if ($wantAnon -eq 0) { "anon=$anonCount - RLS memblokir (benar)" } else { "anon=$anonCount (harap $wantAnon)" }
+        Check "tabel $t" $ok $ket
+    }
 }
 
 # ------------------------------------------------------------ PostGIS RPC --
